@@ -1,0 +1,6 @@
+*.json
+*.yaml
+*.html
+
+*.exe
+swagger-gen
