@@ -2,7 +2,7 @@ package main
 
 import (
 	_ "embed"
-	"encoding/base64"
+	"encoding/json"
 	"flag"
 	"fmt"
 	"log"
@@ -10,6 +10,8 @@ import (
 	"path/filepath"
 	"strings"
 	"text/template"
+
+	"gopkg.in/yaml.v2"
 )
 
 //go:embed swagger-ui-bundle.js
@@ -18,74 +20,11 @@ var swaggerJs string
 //go:embed swagger-ui.css
 var swaggerCss string
 
+//go:embed swagger-ui-standalone-preset.js
+var swaggerPresetJs string
+
 //go:embed swagger-ui-bundle.js.LICENSE.txt
 var swaggerLicense string
-
-// HTML template
-const htmlTemplate = `<!--
-{{ .License }}
-
-MIT License
-
-Copyright (c) 2026 Jeff
-
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
-
-The above copyright notice and this permission notice shall be included in all
-copies or substantial portions of the Software.
-
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-SOFTWARE.
-
--->
-<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>API Documentation</title>
-  <style>
-    {{ .CSS }}
-  </style>
-</head>
-<body>
-  <div id="your-app-docs"></div>
-  <script>
-    {{ .JS }}
-  </script>
-  <script>
-    window.onload = function () {
-      const ui = SwaggerUIBundle({
-        url: "{{ .DataURL }}",
-        dom_id: "#your-app-docs",
-        deepLinking: true,
-        presets: [
-          SwaggerUIBundle.presets.apis,
-          SwaggerUIBundle.SwaggerUIStandalonePreset
-        ],
-        layout: "BaseLayout"
-      })
-    }
-  </script>
-</body>
-</html>`
-
-type PageData struct {
-	CSS     string
-	JS      string
-	DataURL string
-	License string
-}
 
 func main() {
 	inputPath := flag.String("i", "", "Path to the OpenAPI JSON/YAML file")
@@ -107,28 +46,61 @@ func main() {
 		log.Fatalf("Error reading input file: %v", err)
 	}
 
-	// Determine mime type
+	// Parse the input file and convert to JSON for JavaScript
 	ext := strings.ToLower(filepath.Ext(*inputPath))
-	var mimeType string
+	var specJSON []byte
+	var err2 error
+
 	switch ext {
 	case ".json":
-		mimeType = "application/json"
+		// For JSON files, just validate and use as-is
+		var jsonData interface{}
+		err2 = json.Unmarshal(content, &jsonData)
+		if err2 != nil {
+			log.Fatalf("Error parsing JSON file: %v", err2)
+		}
+		specJSON = content
 	case ".yaml", ".yml":
-		mimeType = "application/yaml"
+		// For YAML files, convert to JSON while preserving order
+		var yamlData yaml.MapSlice
+		err2 = yaml.Unmarshal(content, &yamlData)
+		if err2 != nil {
+			log.Fatalf("Error parsing YAML file: %v", err2)
+		}
+		// Convert YAML data to JSON-compatible format
+		jsonData := convertToJSONType(yamlData)
+		specJSON, err2 = orderedJSONMarshal(jsonData)
+		if err2 != nil {
+			log.Fatalf("Error converting YAML to JSON: %v", err2)
+		}
 	default:
-		// Fallback or guess based on content? Defaulting to yaml as it is common
-		mimeType = "application/yaml"
+		// Try YAML first, then JSON
+		var yamlData yaml.MapSlice
+		err2 = yaml.Unmarshal(content, &yamlData)
+		if err2 != nil {
+			// Try JSON
+			var jsonData interface{}
+			err2 = json.Unmarshal(content, &jsonData)
+			if err2 != nil {
+				log.Fatalf("Error parsing input file as either YAML or JSON: %v", err2)
+			}
+			specJSON = content
+		} else {
+			// Successfully parsed as YAML
+			jsonData := convertToJSONType(yamlData)
+			specJSON, err2 = orderedJSONMarshal(jsonData)
+			if err2 != nil {
+				log.Fatalf("Error converting YAML to JSON: %v", err2)
+			}
+		}
 	}
 
-	// Create Data URI
-	encodedContent := base64.StdEncoding.EncodeToString(content)
-	dataURL := fmt.Sprintf("data:%s;base64,%s", mimeType, encodedContent)
-
 	data := PageData{
-		CSS:     swaggerCss,
-		JS:      swaggerJs,
-		DataURL: dataURL,
-		License: swaggerLicense,
+		CSS:      swaggerCss,
+		JS:       swaggerJs,
+		PresetJS: swaggerPresetJs,
+		Spec:     string(specJSON),
+		License:  swaggerLicense,
 	}
 
 	t, err := template.New("index").Parse(htmlTemplate)
