@@ -54,7 +54,7 @@ func main() {
 	switch ext {
 	case ".json":
 		// For JSON files, just validate and use as-is
-		var jsonData interface{}
+		var jsonData any
 		err2 = json.Unmarshal(content, &jsonData)
 		if err2 != nil {
 			log.Fatalf("Error parsing JSON file: %v", err2)
@@ -79,7 +79,7 @@ func main() {
 		err2 = yaml.Unmarshal(content, &yamlData)
 		if err2 != nil {
 			// Try JSON
-			var jsonData interface{}
+			var jsonData any
 			err2 = json.Unmarshal(content, &jsonData)
 			if err2 != nil {
 				log.Fatalf("Error parsing input file as either YAML or JSON: %v", err2)
@@ -95,12 +95,16 @@ func main() {
 		}
 	}
 
+	// Extract title from spec
+	title := extractTitle(specJSON)
+
 	data := PageData{
 		CSS:      swaggerCss,
 		JS:       swaggerJs,
 		PresetJS: swaggerPresetJs,
 		Spec:     string(specJSON),
 		License:  swaggerLicense,
+		Title:    title,
 	}
 
 	t, err := template.New("index").Parse(htmlTemplate)

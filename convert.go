@@ -7,23 +7,23 @@ import (
 	"gopkg.in/yaml.v2"
 )
 
-// convertToJSONType recursively converts YAML interface{} types to JSON-compatible types
+// convertToJSONType recursively converts YAML any types to JSON-compatible types
 // while preserving order using ordered JSON generation
-func convertToJSONType(val interface{}) interface{} {
+func convertToJSONType(val any) any {
 	switch v := val.(type) {
 	case yaml.MapSlice:
 		// Return the MapSlice as-is so we can handle it specially during JSON generation
 		return v
-	case map[interface{}]interface{}:
-		result := make(map[string]interface{})
+	case map[any]any:
+		result := make(map[string]any)
 		for key, value := range v {
 			if str, ok := key.(string); ok {
 				result[str] = convertToJSONType(value)
 			}
 		}
 		return result
-	case []interface{}:
-		result := make([]interface{}, len(v))
+	case []any:
+		result := make([]any, len(v))
 		for i, item := range v {
 			result[i] = convertToJSONType(item)
 		}
@@ -34,13 +34,13 @@ func convertToJSONType(val interface{}) interface{} {
 }
 
 // orderedJSONMarshal converts a value to JSON while preserving order for yaml.MapSlice
-func orderedJSONMarshal(val interface{}) ([]byte, error) {
+func orderedJSONMarshal(val any) ([]byte, error) {
 	var buf bytes.Buffer
 	err := marshalValue(&buf, val)
 	return buf.Bytes(), err
 }
 
-func marshalValue(buf *bytes.Buffer, val interface{}) error {
+func marshalValue(buf *bytes.Buffer, val any) error {
 	switch v := val.(type) {
 	case yaml.MapSlice:
 		buf.WriteByte('{')
@@ -63,7 +63,7 @@ func marshalValue(buf *bytes.Buffer, val interface{}) error {
 		}
 		buf.WriteByte('}')
 		return nil
-	case []interface{}:
+	case []any:
 		buf.WriteByte('[')
 		for i, item := range v {
 			if i > 0 {

@@ -1,5 +1,7 @@
 package main
 
+import "encoding/json"
+
 // HTML template
 const htmlTemplate = `<!--
 {{ .License }}
@@ -32,7 +34,7 @@ SOFTWARE.
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>API Documentation</title>
+  <title>{{ .Title }}</title>
   <style>
     {{ .CSS }}
   </style>
@@ -72,4 +74,21 @@ type PageData struct {
 	PresetJS string
 	Spec     string
 	License  string
+	Title    string
+}
+
+// extractTitle extracts the title from the spec JSON
+func extractTitle(specJSON []byte) string {
+	var spec map[string]any
+	if err := json.Unmarshal(specJSON, &spec); err != nil {
+		return "API Documentation"
+	}
+
+	if info, ok := spec["info"].(map[string]any); ok {
+		if title, ok := info["title"].(string); ok && title != "" {
+			return title
+		}
+	}
+
+	return "API Documentation"
 }
