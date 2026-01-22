@@ -4,8 +4,8 @@ import "encoding/json"
 
 // HTML template
 const htmlTemplate = `<!--
-{{ .License }}
-
+{{ if not .CDNURL }}{{ .License }}
+{{ end }}
 MIT License
 
 Copyright (c) 2026 Jeff
@@ -35,18 +35,27 @@ SOFTWARE.
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>{{ .Title }}</title>
+  {{ if .CDNURL }}
+  <link rel="stylesheet" href="{{ .CDNURL }}/swagger-ui.css" />
+  {{ else }}
   <style>
     {{ .CSS }}
   </style>
+  {{ end }}
 </head>
 <body>
   <div id="swagger-ui"></div>
+  {{ if .CDNURL }}
+  <script src="{{ .CDNURL }}/swagger-ui-bundle.js"></script>
+  <script src="{{ .CDNURL }}/swagger-ui-standalone-preset.js"></script>
+  {{ else }}
   <script>
     {{ .JS }}
   </script>
   <script>
     {{ .PresetJS }}
   </script>
+  {{ end }}
   <script>
     window.onload = function() {
       window.ui = SwaggerUIBundle({
@@ -75,6 +84,7 @@ type PageData struct {
 	Spec     string
 	License  string
 	Title    string
+	CDNURL   string
 }
 
 // extractTitle extracts the title from the spec JSON

@@ -28,11 +28,24 @@ var swaggerLicense string
 
 func main() {
 	inputPath := flag.String("i", "", "Path to the OpenAPI JSON/YAML file")
+	cdnURL := flag.String("cdn", "", "CDN base URL for Swagger UI assets (e.g., https://cdn.jsdelivr.net/npm/swagger-ui-dist@5)")
+	useJSDelivr := flag.Bool("jsdelivr", false, "Use jsdelivr CDN (shortcut for -cdn https://cdn.jsdelivr.net/npm/swagger-ui-dist@5)")
+	useUnpkg := flag.Bool("unpkg", false, "Use unpkg CDN (shortcut for -cdn https://unpkg.com/swagger-ui-dist@5)")
+	useStaticfile := flag.Bool("staticfile", false, "Use staticfile CDN (shortcut for -cdn https://cdn.staticfile.net/swagger-ui-dist/5)")
 	flag.Parse()
 
 	if *inputPath == "" {
 		fmt.Println("Usage: swagger-gen -i <input_file> [output_file]")
 		os.Exit(1)
+	}
+
+	// Determine CDN URL from flags
+	if *useJSDelivr {
+		*cdnURL = "https://cdn.jsdelivr.net/npm/swagger-ui-dist@5"
+	} else if *useUnpkg {
+		*cdnURL = "https://unpkg.com/swagger-ui-dist@5"
+	} else if *useStaticfile {
+		*cdnURL = "https://cdn.staticfile.net/swagger-ui/5.18.2"
 	}
 
 	outputPath := "docs.html"
@@ -105,6 +118,7 @@ func main() {
 		Spec:     string(specJSON),
 		License:  swaggerLicense,
 		Title:    title,
+		CDNURL:   *cdnURL,
 	}
 
 	t, err := template.New("index").Parse(htmlTemplate)
